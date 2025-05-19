@@ -2,6 +2,6 @@ flask
 requests
 beautifulsoup4
 openai
-serpapi
+google-search-results
 flask-limiter
 python-dotenv
