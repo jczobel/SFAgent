@@ -1,0 +1,7 @@
+flask
+requests
+beautifulsoup4
+openai
+serpapi
+flask-limiter
+python-dotenv
