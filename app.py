@@ -21,6 +21,21 @@ app = Flask(__name__)
 # Rate limiting: 5 requests/minute per IP
 limiter = Limiter(get_remote_address, app=app, default_limits=["5 per minute"])
 
+def normalize_domain(website):
+    if not website.startswith("http"):
+        website = "https://" + website
+    domain = website.replace("https://", "").replace("http://", "").split("/")[0]
+    return website, domain
+
+def fallback_urls(domain):
+    return [
+        f"https://{domain}/about",
+        f"https://{domain}/team",
+        f"https://{domain}/leadership",
+        f"https://{domain}/who-we-are",
+        f"https://{domain}/our-story"
+    ]
+
 @app.route('/')
 def health_check():
     return "Agent is alive", 200
@@ -79,28 +94,44 @@ def run_agent():
     try:
         data = request.get_json(force=True)
         print(f"Received payload: {data}")
+
         company = data.get('companyName')
         website = data.get('website')
 
         if not company or not website:
             return jsonify({"error": "Missing companyName or website"}), 400
 
-        domain = website.replace("https://", "").replace("http://", "").split("/")[0]
-        urls = search_company_pages(company, domain)
-        print(f"Scraping URLs for {company}: {urls}")
+        # Normalize website and domain
+        website, domain = normalize_domain(website)
+        print(f"Normalized website: {website}")
+        print(f"Final domain used: {domain}")
 
+        # Run search
+        urls = search_company_pages(company, domain)
+        print(f"SerpAPI URLs for {company}: {urls}")
+
+        # Fallback if search fails
+        if not urls:
+            print(f"[Fallback] Using hardcoded URLs for domain {domain}")
+            urls = fallback_urls(domain)
+
+        # Scrape and combine content
         combined_text = ""
         for url in urls:
             combined_text += cached_scrape(url) + "\n"
 
         if not combined_text.strip():
-            return jsonify({"error": "No meaningful content found"}), 404
+            return jsonify({
+                "error": "No meaningful content found after scraping",
+                "scraped_urls": urls
+            }), 404
 
         summary = summarize_with_gpt(company, combined_text)
 
         return jsonify({
             "companyName": company,
             "website": website,
+            "urlsUsed": urls,
             "goals": extract_section(summary, "goals"),
             "outlook": extract_section(summary, "outlook"),
             "titles": extract_section(summary, "titles"),
@@ -108,6 +139,7 @@ def run_agent():
         })
 
     except Exception as e:
+        print(f"Unexpected error: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
