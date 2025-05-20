@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from flask import Flask, request, jsonify
 from bs4 import BeautifulSoup
@@ -20,7 +21,10 @@ app = Flask(__name__)
 # Rate limiting: 5 requests/minute per IP
 limiter = Limiter(get_remote_address, app=app, default_limits=["5 per minute"])
 
-# Cache scraper results to avoid duplicate requests
+@app.route('/')
+def health_check():
+    return "Agent is alive", 200
+
 @lru_cache(maxsize=100)
 def cached_scrape(url):
     try:
@@ -40,8 +44,7 @@ def search_company_pages(company_name, domain):
         "api_key": serpapi_key
     })
     results = search.get_dict()
-    urls = [res['link'] for res in results.get('organic_results', [])[:5]]
-    return urls
+    return [res['link'] for res in results.get('organic_results', [])[:5]]
 
 def summarize_with_gpt(company_name, combined_text):
     prompt = f"""
@@ -64,6 +67,11 @@ TEXT TO ANALYZE:
         temperature=0.3
     )
     return response['choices'][0]['message']['content']
+
+def extract_section(text, keyword):
+    pattern = rf"{keyword}[^:]*[:\-–]\s*(.*?)(?=(\n|$|\w+:))"
+    match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+    return match.group(1).strip() if match else "Not Found"
 
 @app.route('/run', methods=['POST'])
 @limiter.limit("5 per minute")
@@ -99,11 +107,6 @@ def run_agent():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-def extract_section(text, keyword):
-    pattern = rf"{keyword}[^:]*[:\-–]\s*(.*?)(?=(\n|$|\w+:))"
-    match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-    return match.group(1).strip() if match else "Not Found"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
