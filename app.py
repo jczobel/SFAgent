@@ -77,7 +77,8 @@ def extract_section(text, keyword):
 @limiter.limit("5 per minute")
 def run_agent():
     try:
-        data = request.get_json()
+        data = request.get_json(force=True)
+        print(f"Received payload: {data}")
         company = data.get('companyName')
         website = data.get('website')
 
