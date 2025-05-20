@@ -86,6 +86,7 @@ def run_agent():
 
         domain = website.replace("https://", "").replace("http://", "").split("/")[0]
         urls = search_company_pages(company, domain)
+        print(f"Scraping URLs for {company}: {urls}")
 
         combined_text = ""
         for url in urls:
