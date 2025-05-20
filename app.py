@@ -78,8 +78,8 @@ def extract_section(text, keyword):
 def run_agent():
     try:
         data = request.get_json()
-        company = data.get('companyName')
-        website = data.get('website')
+        company = data.get('companyName','1804 Financial Group')
+        website = data.get('website','https://www.luensminger.com/')
 
         if not company or not website:
             return jsonify({"error": "Missing companyName or website"}), 400
