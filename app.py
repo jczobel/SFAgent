@@ -4,7 +4,8 @@ import json
 from flask import Flask, request, jsonify
 from bs4 import BeautifulSoup
 import requests
-import openai
+from openai import OpenAI
+import os
 from serpapi import GoogleSearch
 from functools import lru_cache
 from flask_limiter import Limiter
@@ -76,7 +77,7 @@ TEXT TO ANALYZE:
 {combined_text}
     """
 
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3
