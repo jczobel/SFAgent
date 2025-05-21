@@ -5,7 +5,6 @@ from flask import Flask, request, jsonify
 from bs4 import BeautifulSoup
 import requests
 from openai import OpenAI
-import os
 from serpapi import GoogleSearch
 from functools import lru_cache
 from flask_limiter import Limiter
@@ -14,7 +13,8 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Initialize clients
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 serpapi_key = os.getenv("SERPAPI_KEY")
 
@@ -22,6 +22,10 @@ app = Flask(__name__)
 
 # Rate limiting: 5 requests/minute per IP
 limiter = Limiter(get_remote_address, app=app, default_limits=["5 per minute"])
+
+@app.route('/')
+def health_check():
+    return "Agent is alive", 200
 
 def normalize_domain(website):
     if not website.startswith("http"):
@@ -37,10 +41,6 @@ def fallback_urls(domain):
         f"https://{domain}/who-we-are",
         f"https://{domain}/our-story"
     ]
-
-@app.route('/')
-def health_check():
-    return "Agent is alive", 200
 
 @lru_cache(maxsize=100)
 def cached_scrape(url):
@@ -77,13 +77,12 @@ If information is missing, return "Not Found" for that field.
 TEXT TO ANALYZE:
 {combined_text}
     """
-
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3
     )
-    return response['choices'][0]['message']['content']
+    return response.choices[0].message.content
 
 def extract_section(text, keyword):
     pattern = rf"{keyword}[^:]*[:\-–]\s*(.*?)(?=(\n|$|\w+:))"
@@ -103,21 +102,17 @@ def run_agent():
         if not company or not website:
             return jsonify({"error": "Missing companyName or website"}), 400
 
-        # Normalize website and domain
         website, domain = normalize_domain(website)
         print(f"Normalized website: {website}")
         print(f"Final domain used: {domain}")
 
-        # Run search
         urls = search_company_pages(company, domain)
         print(f"SerpAPI URLs for {company}: {urls}")
 
-        # Fallback if search fails
         if not urls:
             print(f"[Fallback] Using hardcoded URLs for domain {domain}")
             urls = fallback_urls(domain)
 
-        # Scrape and combine content
         combined_text = ""
         for url in urls:
             combined_text += cached_scrape(url) + "\n"
