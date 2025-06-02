@@ -10,6 +10,8 @@ from functools import lru_cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
+from urllib.parse import urlparse
+from typing import List, Dict, Optional
 
 # Load environment variables from .env
 load_dotenv()
@@ -89,6 +91,19 @@ def extract_section(text, keyword):
     match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
     return match.group(1).strip() if match else "Not Found"
 
+def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str]]:
+    if len(company_name) > 200:
+        return False, "Company name too long"
+    
+    try:
+        result = urlparse(website)
+        if not all([result.scheme, result.netloc]):
+            return False, "Invalid website URL"
+    except Exception:
+        return False, "Invalid website format"
+        
+    return True, None
+
 @app.route('/run', methods=['POST'])
 @limiter.limit("5 per minute")
 def run_agent():
@@ -101,6 +116,10 @@ def run_agent():
 
         if not company or not website:
             return jsonify({"error": "Missing companyName or website"}), 400
+            
+        is_valid, error = validate_inputs(company, website)
+        if not is_valid:
+            return jsonify({"error": error}), 400
 
         website, domain = normalize_domain(website)
         print(f"Normalized website: {website}")
