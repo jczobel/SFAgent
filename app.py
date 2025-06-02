@@ -65,7 +65,7 @@ def cached_scrape(url):
         return ""
 
 def search_company_pages(company_name, domain):
-    query = f"{company_name} site:{domain} (about OR mission OR leadership OR team OR vision OR Affiliations OR services OR contact OR fees OR investment strategy OR investment philosophy OR investment approach)"
+    query = f"{company_name} site:{domain} (about OR mission OR leadership OR team OR vision)"
     search = GoogleSearch({
         "engine": "google",
         "q": query,
