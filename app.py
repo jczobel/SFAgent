@@ -152,22 +152,13 @@ def run_agent():
 
         summary = summarize_with_gpt(company, combined_text)
 
-        try:
-            summary_json = json.loads(summary)
-        except Exception as e:
-            print(f"Failed to parse GPT summary as JSON: {e}")
-            return jsonify({
-                "error": "Failed to parse GPT summary as JSON",
-                "raw_summary": summary
-            }), 500
-
         return jsonify({
             "companyName": company,
             "website": website,
             "urlsUsed": urls,
-            "goals": summary_json.get("goals", "Not Found"),
-            "outlook": summary_json.get("outlook", "Not Found"),
-            "titles": summary_json.get("titles", "Not Found"),
+            "goals": extract_section(summary, "goals"),
+            "outlook": extract_section(summary, "outlook"),
+            "titles": extract_section(summary, "titles"),
             "raw_summary": summary
         })
 
