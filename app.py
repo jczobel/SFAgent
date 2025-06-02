@@ -80,7 +80,7 @@ You are an assistant helping analyze company information.
 Extract and return a JSON object with the following fields:
 - "goals": A concise summary of the company's mission or goals.
 - "outlook": Strategic future direction or plans what kind of financial services are provided look for 401k, RIA, RR, Insurance, retirement, tax services, investment strategy.
-- "titles": look for any mention of CEO, CFP, MBA, any other mention of financial certifications and affiliation to other financial organizations.
+- "titles": List all the contacts you find on the sites and title if possible.
 If information is missing, return "Not Found" for that field.
 
 TEXT TO ANALYZE:
