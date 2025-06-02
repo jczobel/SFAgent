@@ -53,15 +53,31 @@ def fallback_urls(domain):
         f"https://{domain}/our-story"
     ]
 
+# Improved scraping: include paragraphs, headings, lists, and tables
 @lru_cache(maxsize=100)
-def cached_scrape(url):
+def smart_scrape(url):
     try:
         res = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         soup = BeautifulSoup(res.text, 'html.parser')
-        paragraphs = [p.get_text() for p in soup.find_all('p')]
-        return ' '.join(paragraphs)[:3000]
+        parts = []
+        # Paragraphs
+        parts += [p.get_text(separator=" ", strip=True) for p in soup.find_all('p')]
+        # Headings
+        for tag in ['h1','h2','h3','h4','h5','h6']:
+            parts += [h.get_text(separator=" ", strip=True) for h in soup.find_all(tag)]
+        # Lists
+        parts += [li.get_text(separator=" ", strip=True) for li in soup.find_all('li')]
+        # Tables
+        for row in soup.find_all('tr'):
+            cells = [td.get_text(separator=" ", strip=True) for td in row.find_all(['td', 'th'])]
+            if cells:
+                parts.append(" | ".join(cells))
+        # Optionally, extract emails as well
+        emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", res.text)
+        parts += emails
+        return '\n'.join(parts)[:5000]
     except Exception as e:
-        print(f"Scraping error at {url}: {e}")
+        print(f"Smart scraping error at {url}: {e}")
         return ""
 
 def search_company_pages(company_name, domain):
@@ -76,17 +92,27 @@ def search_company_pages(company_name, domain):
 
 def summarize_with_gpt(company_name, combined_text):
     prompt = f"""
-You are an assistant helping analyze company information.
+You are an assistant analyzing company websites.
 
 Extract and return a JSON object with the following fields:
 - "goals": A concise summary of the company's mission or goals.
-- "outlook": Strategic future direction or plans what kind of financial services are provided look for 401k, RIA, RR, Insurance, retirement, tax services, investment strategy.
-- "titles": List all the contacts you find on the sites and title if possible.
-If information is missing, return "Not Found" for that field.
+- "outlook": Strategic future direction or plans; what kind of financial services are provided (look for 401k, RIA, RR, Insurance, retirement, tax services, investment strategy).
+- "titles": An array of all staff/contact names and titles you find. Format each as: {{"name": "Full Name", "title": "Job Title"}}.
+If there are no contacts, set "titles" as an empty array []. If information is missing in other fields, use "Not Found".
+
+Example:
+{{
+  "goals": "...",
+  "outlook": "...",
+  "titles": [
+    {{"name": "John Doe", "title": "CEO"}},
+    {{"name": "Jane Smith", "title": "CFO"}}
+  ]
+}}
 
 TEXT TO ANALYZE:
 {combined_text}
-    """
+"""
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
@@ -94,22 +120,26 @@ TEXT TO ANALYZE:
     )
     return response.choices[0].message.content
 
-def extract_section(text, keyword):
-    pattern = rf"{keyword}[^:]*[:\-–]\s*(.*?)(?=(\n|$|\w+:))"
-    match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-    return match.group(1).strip() if match else "Not Found"
+def parse_summary(summary):
+    try:
+        data = json.loads(summary)
+        goals = data.get("goals", "Not Found")
+        outlook = data.get("outlook", "Not Found")
+        titles = data.get("titles", [])
+        return goals, outlook, titles
+    except Exception as e:
+        print("JSON parsing failed:", e)
+        return "Not Found", "Not Found", []
 
 def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str]]:
     if len(company_name) > 200:
         return False, "Company name too long"
-    
     try:
         result = urlparse(website)
         if not all([result.scheme, result.netloc]):
             return False, "Invalid website URL"
     except Exception:
         return False, "Invalid website format"
-        
     return True, None
 
 @app.route('/run', methods=['POST'])
@@ -124,7 +154,7 @@ def run_agent():
 
         if not company or not website:
             return jsonify({"error": "Missing companyName or website"}), 400
-            
+
         is_valid, error = validate_inputs(company, website)
         if not is_valid:
             return jsonify({"error": error}), 400
@@ -142,7 +172,7 @@ def run_agent():
 
         combined_text = ""
         for url in urls:
-            combined_text += cached_scrape(url) + "\n"
+            combined_text += smart_scrape(url) + "\n"
 
         if not combined_text.strip():
             return jsonify({
@@ -151,14 +181,15 @@ def run_agent():
             }), 404
 
         summary = summarize_with_gpt(company, combined_text)
+        goals, outlook, titles = parse_summary(summary)
 
         return jsonify({
             "companyName": company,
             "website": website,
             "urlsUsed": urls,
-            "goals": extract_section(summary, "goals"),
-            "outlook": extract_section(summary, "outlook"),
-            "titles": extract_section(summary, "titles"),
+            "goals": goals,
+            "outlook": outlook,
+            "titles": titles,
             "raw_summary": summary
         })
 
