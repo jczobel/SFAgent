@@ -41,6 +41,14 @@ def fallback_urls(domain):
         f"https://{domain}/team",
         f"https://{domain}/leadership",
         f"https://{domain}/who-we-are",
+        f"https://{domain}/who-we-serve",
+        f"https://{domain}/services",
+        f"https://{domain}/contact-us",
+        f"https://{domain}/who-we-serve",
+        f"https://{domain}/fees",
+        f"https://{domain}/investment-philosophy",
+        f"https://{domain}/investment-strategy",
+        f"https://{domain}/investment-approach",
         f"https://{domain}/our-story"
     ]
 
@@ -71,8 +79,8 @@ You are an assistant helping analyze company information.
 
 Extract and return a JSON object with the following fields:
 - "goals": A concise summary of the company's mission or goals.
-- "outlook": Strategic future direction or plans what kind of financial services are provided look for 401k, RIA, RR, Insurance, retirement.
-- "titles": look for any mention of CEO CFP MBA any other mention of financial certifications and affiliation to other financial organizations.
+- "outlook": Strategic future direction or plans what kind of financial services are provided look for 401k, RIA, RR, Insurance, retirement, tax services, investment strategy.
+- "titles": look for any mention of CEO, CFP, MBA, any other mention of financial certifications and affiliation to other financial organizations.
 If information is missing, return "Not Found" for that field.
 
 TEXT TO ANALYZE:
