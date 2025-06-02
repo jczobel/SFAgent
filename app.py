@@ -65,7 +65,7 @@ def cached_scrape(url):
         return ""
 
 def search_company_pages(company_name, domain):
-    query = f"{company_name} site:{domain} (about OR mission OR leadership OR team OR vision)"
+    query = f"{company_name} site:{domain} (about OR mission OR leadership OR team OR vision OR Affiliations OR services OR contact OR fees OR investment strategy OR investment philosophy OR investment approach)"
     search = GoogleSearch({
         "engine": "google",
         "q": query,
@@ -140,46 +140,25 @@ def run_agent():
             print(f"[Fallback] Using hardcoded URLs for domain {domain}")
             urls = fallback_urls(domain)
 
-        print(f"Scraping these URLs: {urls}")
         combined_text = ""
         for url in urls:
-            scraped = cached_scrape(url)
-            print(f"Scraped from {url}: {scraped[:200]}")  # Print first 200 chars
-            combined_text += scraped + "\n"
+            combined_text += cached_scrape(url) + "\n"
 
         if not combined_text.strip():
-            print("No content found after scraping.")
             return jsonify({
                 "error": "No meaningful content found after scraping",
                 "scraped_urls": urls
             }), 404
 
-        print(f"Combined text sent to GPT: {combined_text[:500]}")  # Print first 500 chars
         summary = summarize_with_gpt(company, combined_text)
-        print(f"Raw summary from GPT: {summary}")
-
-        try:
-            summary_json = json.loads(summary)
-        except Exception as e:
-            print(f"Failed to parse GPT summary as JSON: {e}")
-            return jsonify({
-                "companyName": company,
-                "website": website,
-                "urlsUsed": urls,
-                "goals": "Not Found",
-                "outlook": "Not Found",
-                "titles": "Not Found",
-                "raw_summary": summary,
-                "error": "Failed to parse GPT summary as JSON"
-            }), 200
 
         return jsonify({
             "companyName": company,
             "website": website,
             "urlsUsed": urls,
-            "goals": summary_json.get("goals", "Not Found"),
-            "outlook": summary_json.get("outlook", "Not Found"),
-            "titles": summary_json.get("titles", "Not Found"),
+            "goals": extract_section(summary, "goals"),
+            "outlook": extract_section(summary, "outlook"),
+            "titles": extract_section(summary, "titles"),
             "raw_summary": summary
         })
 
