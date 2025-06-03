@@ -69,7 +69,9 @@ def smart_scrape(url):
                 parts.append(" | ".join(cells))
         emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", res.text)
         parts += emails
-        return '\n'.join(parts)[:5000]
+        scraped = '\n'.join(parts)[:5000]
+        print(f"\n--- Scraped content for {url} ---\n{scraped[:500]]}...\n--- End ---\n")  # print first 500 chars
+        return scraped
     except Exception as e:
         print(f"Smart scraping error at {url}: {e}")
         return ""
@@ -100,12 +102,23 @@ COMPANY NAME: {company_name}
 TEXT TO ANALYZE:
 {combined_text}
 """
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
-    )
-    return response.choices[0].message.content.strip()
+    print("\n--- Prompt Sent to GPT ---")
+    print(prompt[:1000])  # print the first 1000 chars for brevity
+    print("--- End Prompt ---\n")
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2
+        )
+        summary = response.choices[0].message.content.strip()
+        print("\n--- GPT Response ---")
+        print(summary)
+        print("--- End GPT Response ---\n")
+        return summary
+    except Exception as e:
+        print(f"OpenAI API call failed: {e}")
+        return f"Error from OpenAI: {e}"
 
 def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str]]:
     if len(company_name) > 200:
@@ -119,7 +132,7 @@ def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str
     return True, None
 
 def parse_summary(summary):
-    # No longer parses JSON; just returns the summary as plain text.
+    # Just returns the summary as plain text.
     return summary
 
 @app.route('/run', methods=['POST'])
@@ -127,16 +140,18 @@ def parse_summary(summary):
 def run_agent():
     try:
         data = request.get_json(force=True)
-        print(f"Received payload: {data}")
+        print(f"\n--- Incoming Request ---\n{data}\n--- End Request ---")
 
         company = data.get('companyName')
         website = data.get('website')
 
         if not company or not website:
+            print("Error: Missing companyName or website.")
             return jsonify({"error": "Missing companyName or website"}), 400
 
         is_valid, error = validate_inputs(company, website)
         if not is_valid:
+            print(f"Input validation failed: {error}")
             return jsonify({"error": error}), 400
 
         website, domain = normalize_domain(website)
@@ -154,21 +169,30 @@ def run_agent():
         for url in urls:
             combined_text += smart_scrape(url) + "\n"
 
+        print("\n--- Combined Text to GPT ---\n")
+        print(combined_text[:2000])  # print the first 2000 chars for brevity
+        print("\n--- End Combined Text ---\n")
+
+        # Always call GPT, even if combined_text is thin
         if not combined_text.strip():
-            return jsonify({
-                "error": "No meaningful content found after scraping",
-                "scraped_urls": urls
-            }), 404
+            print("WARNING: No meaningful content found after scraping.")
+            combined_text = "No meaningful content was scraped from the provided URLs."
 
         summary = summarize_with_gpt(company, combined_text)
         human_summary = parse_summary(summary)
 
-        return jsonify({
+        result = {
             "companyName": company,
             "website": website,
             "urlsUsed": urls,
             "summary": human_summary
-        })
+        }
+
+        print("\n--- API Response to Salesforce ---\n")
+        print(json.dumps(result, indent=2))
+        print("\n--- End API Response ---\n")
+
+        return jsonify(result)
 
     except Exception as e:
         print(f"Unexpected error: {e}")
