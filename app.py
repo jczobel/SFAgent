@@ -142,6 +142,18 @@ def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str
         return False, "Invalid website format"
     return True, None
 
+def flatten_titles(titles):
+    """
+    Converts a list of dicts like [{'name': 'A', 'title': 'B'}] 
+    to a string: 'A (B); ...'
+    """
+    if not isinstance(titles, list) or len(titles) == 0:
+        return ""
+    return "; ".join([
+        f"{t.get('name', '').strip()} ({t.get('title', '').strip()})"
+        for t in titles if t.get('name') and t.get('title')
+    ])
+
 @app.route('/run', methods=['POST'])
 @limiter.limit("5 per minute")
 def run_agent():
@@ -189,7 +201,7 @@ def run_agent():
             "urlsUsed": urls,
             "goals": goals,
             "outlook": outlook,
-            "titles": titles,
+            "titles": flatten_titles(titles),  # <--- Now a string!
             "raw_summary": summary
         })
 
