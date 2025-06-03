@@ -59,19 +59,14 @@ def smart_scrape(url):
         res = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         soup = BeautifulSoup(res.text, 'html.parser')
         parts = []
-        # Paragraphs
         parts += [p.get_text(separator=" ", strip=True) for p in soup.find_all('p')]
-        # Headings
         for tag in ['h1','h2','h3','h4','h5','h6']:
             parts += [h.get_text(separator=" ", strip=True) for h in soup.find_all(tag)]
-        # Lists
         parts += [li.get_text(separator=" ", strip=True) for li in soup.find_all('li')]
-        # Tables
         for row in soup.find_all('tr'):
             cells = [td.get_text(separator=" ", strip=True) for td in row.find_all(['td', 'th'])]
             if cells:
                 parts.append(" | ".join(cells))
-        # Optionally, extract emails as well
         emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", res.text)
         parts += emails
         return '\n'.join(parts)[:5000]
@@ -97,16 +92,14 @@ Extract and return ONLY a JSON object in this format, inside a markdown code blo
 
 {{
   "goals": "...",
-  "outlook": "...",
-  "titles": [
-    {{"name": "John Doe", "title": "CEO"}},
-    {{"name": "Jane Smith", "title": "CFO"}}
-  ]
+  "outlook": "..."
 }}
 
-If you cannot find information, set the field to "Not Found" or use an empty array for "titles".
+If you cannot find information, set the field to "Not Found".
+
 TEXT TO ANALYZE:
 {combined_text}
+
 Return only the JSON, inside a markdown code block (triple backticks), and nothing else.
 """
     response = client.chat.completions.create(
@@ -117,7 +110,6 @@ Return only the JSON, inside a markdown code block (triple backticks), and nothi
     return response.choices[0].message.content
 
 def parse_summary(summary):
-    # Try to extract JSON from a Markdown code block first
     json_pattern = r"```(?:json)?\s*(\{[\s\S]*\})\s*```"
     match = re.search(json_pattern, summary)
     raw_json = match.group(1) if match else summary.strip()
@@ -125,25 +117,12 @@ def parse_summary(summary):
         data = json.loads(raw_json)
         goals = data.get("goals", "Not Found")
         outlook = data.get("outlook", "Not Found")
-        titles = data.get("titles", [])
-        return goals, outlook, titles
+        return goals, outlook
     except Exception as e:
         print("JSON parsing failed! Raw summary below:")
         print(repr(summary))
         print("Error:", e)
-        return "Not Found", "Not Found", []
-
-def flatten_titles(titles):
-    """
-    Converts a list of dicts like [{'name': 'A', 'title': 'B'}]
-    to a string: 'A (B); ...'
-    """
-    if not isinstance(titles, list) or len(titles) == 0:
-        return ""
-    return "; ".join([
-        f"{t.get('name', '').strip()} ({t.get('title', '').strip()})"
-        for t in titles if t.get('name') and t.get('title')
-    ])
+        return "Not Found", "Not Found"
 
 def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str]]:
     if len(company_name) > 200:
@@ -195,7 +174,7 @@ def run_agent():
             }), 404
 
         summary = summarize_with_gpt(company, combined_text)
-        goals, outlook, titles = parse_summary(summary)
+        goals, outlook = parse_summary(summary)
 
         return jsonify({
             "companyName": company,
@@ -203,7 +182,6 @@ def run_agent():
             "urlsUsed": urls,
             "goals": goals,
             "outlook": outlook,
-            "titles": flatten_titles(titles),  # Ensure this is a string for Salesforce
             "raw_summary": summary
         })
 
