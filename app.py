@@ -70,7 +70,7 @@ def smart_scrape(url):
         emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", res.text)
         parts += emails
         scraped = '\n'.join(parts)[:5000]
-        print(f"\n--- Scraped content for {url} ---\n{scraped[:500]]}...\n--- End ---\n")  # print first 500 chars
+        print(f"\n--- Scraped content for {url} ---\n{scraped[:500]}...\n--- End ---\n")  # print first 500 chars
         return scraped
     except Exception as e:
         print(f"Smart scraping error at {url}: {e}")
