@@ -11,7 +11,6 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from urllib.parse import urlparse
-from typing import List, Dict, Optional
 
 # Load environment variables from .env
 load_dotenv()
@@ -90,12 +89,18 @@ def summarize_with_gpt(company_name, combined_text):
     prompt = f"""
 You are a professional analyst.
 
-Summarize the following company for a senior business audience:
-- Provide a concise overview of its mission and goals.
-- Describe its strategic outlook and the types of financial services it provides (look for: 401k, RIA, RR, insurance, retirement, tax services, investment strategy).
-- If visible, highlight competitive advantages or industry trends.
-- Write in clear, professional language, suitable for a client-facing report. Use paragraphs and bullet points if appropriate.
-- DO NOT output any code, markdown, or JSON. Write for humans.
+1. Extract the following from the provided company information:
+- Goals: A concise summary of the company's mission and goals.
+- Outlook: The company's strategic outlook and the types of financial services it provides (look for: 401k, RIA, RR, insurance, retirement, tax services, investment strategy).
+
+2. Then, provide a clear, client-ready summary as a paragraph or bullet points, combining the above and any relevant competitive advantages or industry trends you notice.
+
+Respond ONLY in this plain text format:
+
+Goals: ...
+Outlook: ...
+Summary:
+...
 
 COMPANY NAME: {company_name}
 
@@ -103,7 +108,7 @@ TEXT TO ANALYZE:
 {combined_text}
 """
     print("\n--- Prompt Sent to GPT ---")
-    print(prompt[:1000])  # print the first 1000 chars for brevity
+    print(prompt[:1000])
     print("--- End Prompt ---\n")
     try:
         response = client.chat.completions.create(
@@ -120,7 +125,25 @@ TEXT TO ANALYZE:
         print(f"OpenAI API call failed: {e}")
         return f"Error from OpenAI: {e}"
 
-def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str]]:
+def parse_gpt_response(gpt_text):
+    """
+    Parses GPT response formatted as:
+    Goals: ...
+    Outlook: ...
+    Summary:
+    ...
+    Returns (goals, outlook, summary) as strings.
+    """
+    goals_match = re.search(r"Goals:\s*(.*?)\nOutlook:", gpt_text, re.DOTALL | re.IGNORECASE)
+    outlook_match = re.search(r"Outlook:\s*(.*?)\nSummary:", gpt_text, re.DOTALL | re.IGNORECASE)
+    summary_match = re.search(r"Summary:\s*(.*)", gpt_text, re.DOTALL | re.IGNORECASE)
+
+    goals = goals_match.group(1).strip() if goals_match else ""
+    outlook = outlook_match.group(1).strip() if outlook_match else ""
+    summary = summary_match.group(1).strip() if summary_match else gpt_text.strip()
+    return goals, outlook, summary
+
+def validate_inputs(company_name: str, website: str):
     if len(company_name) > 200:
         return False, "Company name too long"
     try:
@@ -130,10 +153,6 @@ def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str
     except Exception:
         return False, "Invalid website format"
     return True, None
-
-def parse_summary(summary):
-    # Just returns the summary as plain text.
-    return summary
 
 @app.route('/run', methods=['POST'])
 @limiter.limit("5 per minute")
@@ -173,18 +192,19 @@ def run_agent():
         print(combined_text[:2000])  # print the first 2000 chars for brevity
         print("\n--- End Combined Text ---\n")
 
-        # Always call GPT, even if combined_text is thin
         if not combined_text.strip():
             print("WARNING: No meaningful content found after scraping.")
             combined_text = "No meaningful content was scraped from the provided URLs."
 
-        summary = summarize_with_gpt(company, combined_text)
-        human_summary = parse_summary(summary)
+        summary_text = summarize_with_gpt(company, combined_text)
+        goals, outlook, human_summary = parse_gpt_response(summary_text)
 
         result = {
             "companyName": company,
             "website": website,
             "urlsUsed": urls,
+            "goals": goals,
+            "outlook": outlook,
             "summary": human_summary
         }
 
