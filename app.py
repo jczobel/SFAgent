@@ -53,7 +53,6 @@ def fallback_urls(domain):
         f"https://{domain}/our-story"
     ]
 
-# Improved scraping: include paragraphs, headings, lists, and tables
 @lru_cache(maxsize=100)
 def smart_scrape(url):
     try:
@@ -94,13 +93,8 @@ def summarize_with_gpt(company_name, combined_text):
     prompt = f"""
 You are an assistant analyzing company websites.
 
-Extract and return a JSON object with the following fields:
-- "goals": A concise summary of the company's mission or goals.
-- "outlook": Strategic future direction or plans; what kind of financial services are provided (look for 401k, RIA, RR, Insurance, retirement, tax services, investment strategy).
-- "titles": An array of all staff/contact names and titles you find. Format each as: {{"name": "Full Name", "title": "Job Title"}}.
-If there are no contacts, set "titles" as an empty array []. If information is missing in other fields, use "Not Found".
+Extract and return ONLY a JSON object in this format, inside a markdown code block:
 
-Example:
 {{
   "goals": "...",
   "outlook": "...",
@@ -110,26 +104,46 @@ Example:
   ]
 }}
 
+If you cannot find information, set the field to "Not Found" or use an empty array for "titles".
 TEXT TO ANALYZE:
 {combined_text}
+Return only the JSON, inside a markdown code block (triple backticks), and nothing else.
 """
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3
+        temperature=0.2
     )
     return response.choices[0].message.content
 
 def parse_summary(summary):
+    # Try to extract JSON from a Markdown code block first
+    json_pattern = r"```(?:json)?\s*(\{[\s\S]*\})\s*```"
+    match = re.search(json_pattern, summary)
+    raw_json = match.group(1) if match else summary.strip()
     try:
-        data = json.loads(summary)
+        data = json.loads(raw_json)
         goals = data.get("goals", "Not Found")
         outlook = data.get("outlook", "Not Found")
         titles = data.get("titles", [])
         return goals, outlook, titles
     except Exception as e:
-        print("JSON parsing failed:", e)
+        print("JSON parsing failed! Raw summary below:")
+        print(repr(summary))
+        print("Error:", e)
         return "Not Found", "Not Found", []
+
+def flatten_titles(titles):
+    """
+    Converts a list of dicts like [{'name': 'A', 'title': 'B'}]
+    to a string: 'A (B); ...'
+    """
+    if not isinstance(titles, list) or len(titles) == 0:
+        return ""
+    return "; ".join([
+        f"{t.get('name', '').strip()} ({t.get('title', '').strip()})"
+        for t in titles if t.get('name') and t.get('title')
+    ])
 
 def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str]]:
     if len(company_name) > 200:
@@ -141,18 +155,6 @@ def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str
     except Exception:
         return False, "Invalid website format"
     return True, None
-
-def flatten_titles(titles):
-    """
-    Converts a list of dicts like [{'name': 'A', 'title': 'B'}] 
-    to a string: 'A (B); ...'
-    """
-    if not isinstance(titles, list) or len(titles) == 0:
-        return ""
-    return "; ".join([
-        f"{t.get('name', '').strip()} ({t.get('title', '').strip()})"
-        for t in titles if t.get('name') and t.get('title')
-    ])
 
 @app.route('/run', methods=['POST'])
 @limiter.limit("5 per minute")
@@ -201,7 +203,7 @@ def run_agent():
             "urlsUsed": urls,
             "goals": goals,
             "outlook": outlook,
-            "titles": flatten_titles(titles),  # <--- Now a string!
+            "titles": flatten_titles(titles),  # Ensure this is a string for Salesforce
             "raw_summary": summary
         })
 
