@@ -86,43 +86,26 @@ def search_company_pages(company_name, domain):
 
 def summarize_with_gpt(company_name, combined_text):
     prompt = f"""
-You are an assistant analyzing company websites.
+You are a professional analyst.
 
-Extract and return ONLY a JSON object in this format, inside a markdown code block:
+Summarize the following company for a senior business audience:
+- Provide a concise overview of its mission and goals.
+- Describe its strategic outlook and the types of financial services it provides (look for: 401k, RIA, RR, insurance, retirement, tax services, investment strategy).
+- If visible, highlight competitive advantages or industry trends.
+- Write in clear, professional language, suitable for a client-facing report. Use paragraphs and bullet points if appropriate.
+- DO NOT output any code, markdown, or JSON. Write for humans.
 
-{{
-  "goals": "...",
-  "outlook": "..."
-}}
-
-If you cannot find information, set the field to "Not Found".
+COMPANY NAME: {company_name}
 
 TEXT TO ANALYZE:
 {combined_text}
-
-Return only the JSON, inside a markdown code block (triple backticks), and nothing else.
 """
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2
     )
-    return response.choices[0].message.content
-
-def parse_summary(summary):
-    json_pattern = r"```(?:json)?\s*(\{[\s\S]*\})\s*```"
-    match = re.search(json_pattern, summary)
-    raw_json = match.group(1) if match else summary.strip()
-    try:
-        data = json.loads(raw_json)
-        goals = data.get("goals", "Not Found")
-        outlook = data.get("outlook", "Not Found")
-        return goals, outlook
-    except Exception as e:
-        print("JSON parsing failed! Raw summary below:")
-        print(repr(summary))
-        print("Error:", e)
-        return "Not Found", "Not Found"
+    return response.choices[0].message.content.strip()
 
 def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str]]:
     if len(company_name) > 200:
@@ -134,6 +117,10 @@ def validate_inputs(company_name: str, website: str) -> tuple[bool, Optional[str
     except Exception:
         return False, "Invalid website format"
     return True, None
+
+def parse_summary(summary):
+    # No longer parses JSON; just returns the summary as plain text.
+    return summary
 
 @app.route('/run', methods=['POST'])
 @limiter.limit("5 per minute")
@@ -174,15 +161,13 @@ def run_agent():
             }), 404
 
         summary = summarize_with_gpt(company, combined_text)
-        goals, outlook = parse_summary(summary)
+        human_summary = parse_summary(summary)
 
         return jsonify({
             "companyName": company,
             "website": website,
             "urlsUsed": urls,
-            "goals": goals,
-            "outlook": outlook,
-            "raw_summary": summary
+            "summary": human_summary
         })
 
     except Exception as e:
