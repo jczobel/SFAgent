@@ -91,7 +91,7 @@ def summarize_with_gpt(company_name, combined_text, firm_crd=None):
         firm_info_text = f"""
 Firm CRD: {firm_crd}
 Please also summarize any relevant information about this firm using its public profiles:
-- FINRA: https://brokercheck.finra.org/firm/summary/{firm_crd}
+- FINRA: https://google/{company_name} {firm_crd}
 - SEC: https://adviserinfo.sec.gov/firm/summary/{firm_crd}
 """
     prompt = f"""
