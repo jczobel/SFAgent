@@ -97,19 +97,22 @@ Please also summarize any relevant information about this firm using its public 
     prompt = f"""
 You are a professional analyst.
 
-1. Extract the following from the provided company information:
-- Goals: A concise summary of the company's mission and goals.
-- Outlook: The company's strategic outlook and the types of financial services it provides (look for: 401k, RIA, RR, insurance, retirement, tax services, investment strategy).
+Extract the following from the provided company information and return your answer as HTML suitable for a Salesforce rich text field, using paragraphs, bullet points, and bold for section titles:
 
-2. Then, provide a clear, client-ready summary as a paragraph or bullet points, combining the above and any relevant competitive advantages or industry trends you notice.
+<b>Goals</b>:
+<ul>
+  <li>Summarize the company's mission and goals.</li>
+</ul>
+<b>Outlook</b>:
+<ul>
+  <li>Summarize the company's strategic outlook and the types of financial services it provides (look for: 401k, RIA, RR, insurance, retirement, tax services, investment strategy).</li>
+</ul>
+<b>Summary</b>:
+<ul>
+  <li>Provide a clear, client-ready summary as a paragraph or bullet points, combining the above and any relevant competitive advantages or industry trends you notice.</li>
+</ul>
+
 {firm_info_text}
-Respond ONLY in this plain text format:
-
-Goals: ...
-Outlook: ...
-Summary:
-...
-
 COMPANY NAME: {company_name}
 
 TEXT TO ANALYZE:
