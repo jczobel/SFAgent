@@ -85,7 +85,15 @@ def search_company_pages(company_name, domain):
     results = search.get_dict()
     return [res['link'] for res in results.get('organic_results', [])[:5]]
 
-def summarize_with_gpt(company_name, combined_text):
+def summarize_with_gpt(company_name, combined_text, firm_crd=None):
+    firm_info_text = ""
+    if firm_crd:
+        firm_info_text = f"""
+Firm CRD: {firm_crd}
+Please also summarize any relevant information about this firm using its public profiles:
+- FINRA: https://brokercheck.finra.org/firm/summary/{firm_crd}
+- SEC: https://adviserinfo.sec.gov/firm/summary/{firm_crd}
+"""
     prompt = f"""
 You are a professional analyst.
 
@@ -94,7 +102,7 @@ You are a professional analyst.
 - Outlook: The company's strategic outlook and the types of financial services it provides (look for: 401k, RIA, RR, insurance, retirement, tax services, investment strategy).
 
 2. Then, provide a clear, client-ready summary as a paragraph or bullet points, combining the above and any relevant competitive advantages or industry trends you notice.
-
+{firm_info_text}
 Respond ONLY in this plain text format:
 
 Goals: ...
@@ -163,6 +171,7 @@ def run_agent():
 
         company = data.get('companyName')
         website = data.get('website')
+        firm_crd = data.get('firmCRD')  # Accept firmCRD if present
 
         if not company or not website:
             print("Error: Missing companyName or website.")
@@ -196,12 +205,13 @@ def run_agent():
             print("WARNING: No meaningful content found after scraping.")
             combined_text = "No meaningful content was scraped from the provided URLs."
 
-        summary_text = summarize_with_gpt(company, combined_text)
+        summary_text = summarize_with_gpt(company, combined_text, firm_crd)
         goals, outlook, human_summary = parse_gpt_response(summary_text)
 
         result = {
             "companyName": company,
             "website": website,
+            "firmCRD": firm_crd,
             "urlsUsed": urls,
             "goals": goals,
             "outlook": outlook,
