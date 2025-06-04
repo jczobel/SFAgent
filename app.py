@@ -91,7 +91,7 @@ def summarize_with_gpt(company_name, combined_text, firm_crd=None):
         firm_info_text = f"""
 Firm CRD: {firm_crd}
 Please also summarize any relevant information about this firm using its public profiles:
-- FINRA: https://google/{company_name} {firm_crd}
+- FINRA: https://brokercheck.finra.org/api/firm/summary/{firm_crd}
 - SEC: https://adviserinfo.sec.gov/firm/summary/{firm_crd}
 """
     prompt = f"""
@@ -101,7 +101,7 @@ You are a professional analyst.
 - Goals: A concise summary of the company's mission and goals.
 - Outlook: The company's strategic outlook and the types of financial services it provides (look for: 401k, RIA, RR, insurance, retirement, tax services, investment strategy).
 
-2. Then, provide a clear, client-ready summary as a paragraph or bullet points, combining the above and any relevant competitive advantages or industry trends you notice.
+2. Then, provide a clear, client-ready summary as a paragraph or bullet points, combining the above and any relevant competitive advantages or industry trends you notice look for AUM and Assicaition to other financial institutions.
 {firm_info_text}
 Respond ONLY in this plain text format:
 
